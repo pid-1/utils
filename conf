@@ -9,8 +9,11 @@ from textwrap import dedent
 config = configparser.ConfigParser()
 conf_file = path.expanduser('~/.settings.ini')
 
-def lengthen(path):
-   '''Lengthens ~/ back to /home/<user>'''
+def shorten(path):
+   '''
+   Shortens /home/<user> back to ~/,
+   It's the opposite of path.expanduser()
+   '''
    pattern = f"^{environ['HOME']}"
    return re.sub(pattern, '~', path)
 
@@ -73,7 +76,7 @@ def create_config_example():
 def entry_add(name, location):
    config.read(conf_file)
 
-   config['Files'][name] = lengthen(location)
+   config['Files'][name] = shorten(location)
 
    with open(conf_file, 'w') as f:
       config.write(f)
