@@ -1,0 +1,76 @@
+#!/bin/bash
+# Backup utility using rsync + ssh
+
+function usage() {
+   #[[ "$#" == "0" ]] && to=2 || ( to=$1 ; shift )
+   echo -e  "\nUSAGE:"
+   echo -e  "$0  [-h] [-is]\n"
+   echo -e  "Arguments:"
+   echo -e  "   -h | --help          Displays this help page\n"
+   echo -e  "   -i | --internal      Backs up to the internal drive"
+   echo -e  "   -s | --ssh           Backs up via SSH"
+   # echo -e "   -v | --verify        Verify backup by listing contents\n"
+   echo -e "\nExample:  backup -s\n"
+   exit
+}
+
+
+function backup_internal() {
+   sudo bash -c "mkdir /mnt/backup"
+   sudo bash -c "mount /dev/nvme0n1p3 /mnt/backup/"
+
+   status=$?
+   if [[ "$status" != "0" ]] ; then
+    echo -e "\nmount exited with status $status.\n"
+    exit $status
+   fi
+
+   rsync -a -P --delete-during \
+      /home/aurelius \
+         --exclude '.cache' \
+         --exclude '.thunderbird/' \
+         --exclude '.local' \
+         --exclude 'Music' \
+         --exclude 'Downloads' \
+      /mnt/backup/
+
+   sync ; sync ; sync
+
+   sudo bash -c "umount /dev/nvme0n1p3"
+   sudo bash -c "rmdir /mnt/backup"
+   exit 0
+}
+
+
+function backup_ssh() {
+   rsync -a -P --delete-during -e ssh \
+      /home/aurelius \
+         --exclude '.cache' \
+         --exclude '.thunderbird/' \
+         --exclude '.local' \
+         --exclude 'Music' \
+         --exclude 'Downloads' \
+      senatus:/home/aurelius/Backup/populus/
+   exit 0
+}
+
+
+# Exits if no args, displays usage
+[[ "$#" == "0" ]] && usage
+
+while [[ "$#" > "0" ]] ; do
+   case $1 in
+
+      -h | --help )
+         usage ;;
+
+      -i | --internal )
+         backup_internal ;;
+
+      -s | --ssh )
+         backup_ssh ;;
+
+      *)
+         usage ;;
+   esac
+done

@@ -1,0 +1,36 @@
+#!/bin/bash
+# Connects to Bluetooth device
+#
+# Currently this only works for devices that have already been paired/trusted.
+
+function format () {
+   [[ $1 == 'red' ]]   && echo -e "\033[0;31m${2}\033[0m" && return 0
+   [[ $1 == 'green' ]] && echo -e "\033[0;31m${2}\033[0m" && return 0
+   # Need to include this -------------------------------------^
+   # Without the return 0, the '&&' syntax in line 14 doesn't work.
+   # Of course, I could just do a regular 'if/then', but that's no fun.
+   #
+   # Coming back to this project after a while. I don't know if this ^^
+   # is actually true...?
+}
+
+[[ "$#" -lt 1 ]] && format red "Specify an argument: [phone|jabra|wraith]" && exit 1
+
+phone="3C:28:6D:F6:22:0F"
+jabra="74:5C:4B:5C:0F:01"
+wraith=""
+
+[[ $1 == 'phone' ]]  && connect_to="$phone"
+[[ $1 == 'jabra' ]]  && connect_to="$jabra"
+[[ $1 == 'wraith' ]] && connect_to="$wraith"
+
+found=0
+while IFS= read -r line ; do
+   if [[ $(echo -e "$line" | grep "$connect_to") ]] ; then
+      found=1
+      break
+   fi
+done < <(bluetoothctl --timeout 3 -- scan on)
+[[ $found == 0 ]] && format red "Unable to find device." && exit 2
+
+sudo bash -c "bluetoothctl connect '$connect_to'"

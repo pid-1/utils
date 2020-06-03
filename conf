@@ -1,0 +1,231 @@
+#!/usr/bin/env python3
+
+import re, argparse, configparser
+from os import system, path, environ
+from sys import argv
+from shutil import which
+from textwrap import dedent
+
+config = configparser.ConfigParser()
+conf_file = path.expanduser('~/.settings.ini')
+
+def lengthen(path):
+   '''Lengthens ~/ back to /home/<user>'''
+   pattern = f"^{environ['HOME']}"
+   return re.sub(pattern, '~', path)
+
+
+def find_editor():
+   '''
+   First checks if you've set an editor in environ.
+   if nothing, what editor you've installed,
+   if nothing, then it prompts to ask what editor you want to use.
+   '''
+   editor = environ.get('EDITOR')
+
+   if not editor:
+      if which('vim') and not which('emacs'):
+         editor = 'vim'
+      elif which('emacs') and not which('vim'):
+         editor = 'emacs'
+      else:
+         ans = input( "Select an editor, (vim/emacs)\n> " )
+         if ans not in ['vim', 'emacs']:
+            find_editor()
+
+   config.read(conf_file)
+   if 'System' not in config:
+      config['System'] = {}
+
+   config['System']['editor'] = editor
+
+   with open(conf_file, 'w') as f:
+      config.write(f)
+
+   return editor
+
+
+def create_config_skeleton():
+   '''Generates an example config at ~/.settings.example.'''
+
+   config['System'] = {}
+   config['Files'] = {}
+
+   with open('~/.settings.example', 'w') as f:
+      config.write(f)
+
+
+def create_config_example():
+   '''Generates a minimal config at ~/.settings.ini,
+   NUKES your current one if saved here. Be careful!'''
+
+   config['System'] = {'editor': 'vim'}
+
+   config['Files'] = {'vim': '/etc/vimrc',
+                      'bash': '~/.bashrc',
+                      'git': '~/.gitconfig',
+                      'i3': '~/.config/i3/config'}
+
+   with open(conf_file, 'w') as f:
+      config.write(f)
+
+
+def entry_add(name, location):
+   config.read(conf_file)
+
+   config['Files'][name] = lengthen(location)
+
+   with open(conf_file, 'w') as f:
+      config.write(f)
+
+
+def edit(f):
+   '''Edits a file in your specified editor.'''
+   system('clear')
+   system(f'{editor} {f}')
+
+
+#-----| argparse |-----#
+# all my argparse nonsense
+
+def parse_args():
+   '''Handles command-line arguments for automation, or quicker use.'''
+
+   parser = argparse.ArgumentParser \
+      (description = dedent('''\
+         Utility to manage, add, and edit configuration files.
+
+         Tips:
+         * Careful generating new settings.ini, it will overwrite your current one
+         * To remove an option, delete it manually from the config file ~/.settings.ini
+         * Use brief but memorable nicknames to make opening config files faster
+         '''),
+      usage = '%(prog)s [-h] [-a -f FILE -n NAME] [-e NAME]',
+      formatter_class = argparse.RawTextHelpFormatter)
+
+   parser.add_argument \
+      ('-a', '--add',
+         help = "adds a new file to the config manager, requires -n/-f flags",
+         action = 'store_true',
+         default = False,
+         required = False)
+   parser.add_argument \
+      ('-f', '--file',
+         help = "specifies the location of the new config file.",
+         default = False,
+         required = False)
+   parser.add_argument \
+      ('-n', '--nickname',
+         help = "specifies a nickname for the config file.",
+         metavar = 'NAME',
+         default = False,
+         required = False)
+   parser.add_argument \
+      ('-e', '--edit',
+         help = "edits the file specified by nickname (e.g., conf -e bash)",
+         metavar = 'FILE',
+         default = False,
+         required = False)
+   parser.add_argument \
+      ('-c', '--config',
+         help = "edits conf's own config file",
+         action = 'store_true',
+         default = False,
+         required = False)
+   parser.add_argument \
+      ('--create',
+         help = dedent('''\
+         creates a config file:
+         'skeleton' nukes your current .ini and creates a fresh config
+         'example' creates an example config at ~/.settings.example\n
+         '''),
+         choices = ['skeleton', 'example'],
+         default = False,
+         required = False)
+
+   return parser.parse_args()
+
+
+def handle_args(args):
+   '''
+   Processes CLI args. Does the things it do.
+   '''
+   #-----| check |-----#
+   # if run without file and nickname
+   if args.add == True \
+      and args.file == False \
+      and args.nickname == False:
+         print( "\nMust specify a file name and nickname\n" )
+   # if run with file, without nickname
+   elif args.add == True \
+      and args.file != False \
+      and args.nickname == False:
+         print( "\nMust specify a nickname\n" )
+   # if run with nickname, without file
+   elif args.add == True \
+      and args.file == False \
+      and args.nickname != False:
+         print( "\nMust specify a file name\n" )
+
+   #-----| write |-----#
+   # if run with file and nickname
+   elif args.add == True \
+      and args.file != False \
+      and args.nickname != False:
+         print( "\nAdding file\n" )
+
+         entry_add(args.nickname, args.file)
+
+         print( "Config added.\n" )
+         print( "Name: '%s'\nFile: '%s'\n" % (args.nickname, args.file))
+
+   #-----| confs |-----#
+   # creates new default or empty config files
+   elif args.create == 'skeleton':
+      print("\nCONFIRM\n")
+      print("This will nuke any existing config at ~/.settings.ini.")
+      ans = input("Are you sure you want to proceed? (y)es | (n)o?\n> ")
+      if ans == 'y':
+         create_config_skeleton()
+         print("\nSkeleton config created.\n")
+      else:
+         print("\nInput not 'y'. Exiting.\n")
+
+   elif args.create == 'example':
+         create_config_example()
+
+   #-----| edit |-----#
+   # if run with -e flag, edit with set editor
+   elif args.edit != False:
+      config.read(conf_file)
+      try:
+         edit_file = config['Files'][args.edit]
+         edit(edit_file)
+      except:
+         print( "\nFile doesn't seem to exist. Check the config.\n" )
+         raise SystemExit
+   elif args.config != False:
+      edit(conf_file)
+
+
+def main():
+   if not path.isfile(conf_file):
+      print( "\nConfig file not found. Generating at ~/.settings.ini" )
+      input( "\n<CR> to continue, or <ctrl>C to exit" )
+      create_config_skeleton()
+
+   config.read(conf_file)
+
+   global editor
+   try:
+      editor = config['System']['editor']
+   except KeyError:
+      editor = find_editor()
+
+   if len(argv) == 1:
+      print('Requires args. Run \'conf --help\' for examples.')
+   handle_args(parse_args())
+
+
+if __name__ == '__main__':
+   main()

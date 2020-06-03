@@ -1,0 +1,67 @@
+#!/bin/bash
+# mnt v0.1
+
+red() { echo -e "\e[31m${1}\e[0m" ;}
+
+# If xclip is found on the system
+[[ $(which xclip) ]] && clip="True" || clip="False"
+
+# Normally this would work, but since my "tools" drive is formatted as
+#  a disk for some reason, we have to do things a little bit differenly.
+# Also, you don't need to do the NR>=2, as the -n flag removes the
+#  headings.
+#
+#devices=$(lsblk -lo name,type,label | grep -vE 'disk|sda|sdb|nvme0' | awk 'NR>=2 {print $1,$3}')
+
+display_list=$(lsblk -t -o name,type,label | grep -vF 'nvme0') # | awk '{print $1,$3}')
+options_list=( $(lsblk -ln -o name,type | grep -vF 'nvme0' | awk '{print $1}') )
+
+
+mount_device() {
+   device="$1"
+
+   # If there's no dir with the name of the mount point,
+   #  create the directory, and mount the drive to it
+   if [[ ! -d /mnt/$device ]] ; then
+      sudo bash -c "mkdir /mnt/$device"
+      [[ $? == 0 ]] && echo -e "Dir created."
+      sudo bash -c "mount /dev/$device /mnt/$device"
+      [[ $? == 0 ]] && echo -e "Device mounted"
+   fi
+
+   # If the dir exists, and something is already mounted to it
+   [[ -d /mnt/$device ]] && [[ $(lsblk -o mountpoint | grep "/mnt/$device") ]] && \
+      red "\nDisk already mounted to /dev/$device.\n" && exit 2
+
+   # If the dir exists, but is empty, mount to it
+   [[ -d /mnt/$device ]] && [[ ! $(ls /mnt/$device) ]] && \
+      sudo bash -c "mount /dev/$device /mnt/$device" && \
+      [[ $? == 0 ]] && echo -e "Device mounted"
+}
+
+
+num=${#options_list[@]}
+
+# If there are no devices found, exit
+[[ "$num" == 0 ]] && \
+   red "\nNo devices found\n" && exit 1
+
+# If there's only 1 device found, mount it
+if [[ "$num" == 1 ]] ; then
+   red "\nOnly one device found"
+   mount_device "${options_list[0]}"
+else
+   red "\nWhich device to mount?\n"
+   echo "$display_list"
+   echo
+
+   PS3="Choose by <number>: "
+   select device in "${options_list[@]}" ; do
+      mount_device $device
+   done
+fi
+
+if [[ "$clip" == "True" ]] ; then
+   red "\nPaste to navigate.\n"
+   echo "cd /mnt/$device ; ls" | xclip -i -selection c
+fi
