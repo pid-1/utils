@@ -1,9 +1,9 @@
 #!/bin/bash
 
 brightness=$1
+valid=$(awk -v i="$brightness" 'BEGIN { print (0 < i && i <= 1 ? "True" : "") }')
 
-[[ $brightness < 0.1 ]] && echo -e "Invalid resonse. Must be > 0.1" && exit 1
-[[ $brightness > 1 ]] && echo -e "Invalid resonse. Must be < 1" && exit 2
+[[ ! $valid ]] && echo -e "Invalid value. 0 < \$value <= 1" && exit 1
 
 for monitor in $(xrandr -q | grep ' connected' | awk '{print $1}') ; do
    xrandr --output $monitor --brightness $brightness
