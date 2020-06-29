@@ -1,28 +1,22 @@
 #!/bin/bash
-# Connects to Bluetooth device
-#
-# Currently this only works for devices that have already been paired/trusted.
-
-function format () {
-   [[ $1 == 'red' ]]   && echo -e "\033[0;31m${2}\033[0m" && return 0
-   [[ $1 == 'green' ]] && echo -e "\033[0;31m${2}\033[0m" && return 0
-   # Need to include this -------------------------------------^
-   # Without the return 0, the '&&' syntax in line 14 doesn't work.
-   # Of course, I could just do a regular 'if/then', but that's no fun.
-   #
-   # Coming back to this project after a while. I don't know if this ^^
-   # is actually true...?
-}
-
-[[ "$#" -lt 1 ]] && format red "Specify an argument: [phone|jabra|wraith]" && exit 1
+# Currently only works for devices that have been paired/trusted.
+# Pretty much just an easy shortcut for connecting to my headset.
 
 phone="3C:28:6D:F6:22:0F"
 jabra="74:5C:4B:5C:0F:01"
 wraith=""
 
-[[ $1 == 'phone' ]]  && connect_to="$phone"
-[[ $1 == 'jabra' ]]  && connect_to="$jabra"
-[[ $1 == 'wraith' ]] && connect_to="$wraith"
+function format () {
+   [[ $1 == 'red' ]]   && echo -e "\033[0;31m${2}\033[0m" && return 0
+   [[ $1 == 'green' ]] && echo -e "\033[0;31m${2}\033[0m" && return 0
+}
+
+case $1 in
+   'phone')  connect_to="$phone"  ;;
+   'jabra')  connect_to="$jabra"  ;;
+   'wraith') connect_to="$wraith" ;;
+   *) format red "Specify an argument: [phone|jabra|wraith]" && exit 1
+esac
 
 found=0
 while IFS= read -r line ; do
