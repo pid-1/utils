@@ -8,6 +8,14 @@
 
 WIDTH=80
 
+#interface=
+# The below loop will set $interface to the first found interface that is "UP".
+# Comment it out to set manually above.
+while IFS=$'\n' read line ; do
+	interface=$( echo -e "$line" | awk '$2 == "UP" { print $1}' )
+	[[ $interface ]] && break
+done < <(ip -br link)
+
 # ANSI escape colors
 Custom ()
 {
@@ -85,7 +93,7 @@ done
 #                                    STATS
 #------------------------------------------------------------------------------
 #-----| IP ADDR |-----#
-_IP_ADDR=$( ip -f inet -4 -br address | grep enp | awk '{print $3}' )
+_IP_ADDR=$( ip -f inet -4 -br address | grep $interface | awk '{print $3}' )
 
 _SEARCH="([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})(\.[0-9]{1,3})(/[0-9]{1,2})"
 _REPLACE="`printf "${TEXT}"`\\1`printf "${ACCENT}"`\2`printf "${Reset}"``printf "${TEXT}"`\\3`printf "${Reset}"`"
@@ -120,7 +128,7 @@ _IS_TEMP_CRIT=$(
 [[ $_IS_TEMP_CRIT ]] && _TEMP_COLOR="${CRIT}"
 
 #-----| Uptime |-----#
-_UPTIME=$( uptime | sed -E 's/.*up[ ]([0-9]+ days, )?[ ]?([0-9]+:[0-9]+).*/\1\2/g' )
+_UPTIME=$( uptime | sed -E 's/.*up ([0-9]* (days?|min)\, )?[ ]?\,?[ ]*([0-9]+:[0-9]+)?.*/\1\3/g' )
 
 
 #==============================================================================
