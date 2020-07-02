@@ -2,6 +2,9 @@
 # mnt v0.1
 
 red() { echo -e "\e[31m${1}\e[0m" ;}
+echo -e "Marcus--Don't use this. You know better."
+echo -e "Written too long ago, Has some potentially dangerous side-effects."
+exit 1
 
 # If xclip is found on the system
 [[ $(which xclip) ]] && clip="True" || clip="False"
