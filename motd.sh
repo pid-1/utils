@@ -59,8 +59,8 @@ declare -a HEADER_01=(
    "└─┐├┤ │││├─┤ │ │ │└─┐  ├─┘│ │├─┘│ ││  │ │└─┐│─┼┐│ │├┤ "
    "└─┘└─┘┘└┘┴ ┴ ┴ └─┘└─┘  ┴  └─┘┴  └─┘┴─┘└─┘└─┘└─┘└└─┘└─┘")
 
-length_HEADER_O1=$( echo "$HEADER_01" | wc -m )
-offset_HEADER_01=$( echo "(${WIDTH} - $length_HEADER_O1) / 2" | bc )
+length_HEADER_O1=$( wc -m <<< "$HEADER_01" )
+offset_HEADER_01=$( bc <<< "(${WIDTH} - $length_HEADER_O1) / 2" )
 
 for line in "${HEADER_01[@]}" ; do
    line="${FG}${line}${Reset}"
@@ -79,13 +79,13 @@ declare -a HEADER_02=(
    "██║  ██║╚██████╔╝██║ ╚═╝ ██║██║  ██║██║ ╚████║╚██████╔╝███████║"
    "╚═╝  ╚═╝ ╚═════╝ ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝")
 
-length_HEADER_O2=$( echo "$HEADER_02" | wc -m )
-offset_HEADER_02=$( echo "(${WIDTH} - $length_HEADER_O2) / 2" | bc )
+length_HEADER_O2=$( wc -m <<<  "$HEADER_02" )
+offset_HEADER_02=$( bc <<< "(${WIDTH} - $length_HEADER_O2) / 2" )
 
 # Gotta use triple escape'd '\' for `sed`:  black="\\\033[30m", or "\\${Black}"
 for line in "${HEADER_02[@]}" ; do
-   fline=$( echo "$line" | sed -r "s/█/\\${FG}█\\${Reset}/g" )
-   fline=$( echo "$fline" | sed -r "s/([╗═╔╚║╝])/\\${BG}\1\\${Reset}/g" )
+   fline=$( sed -r "s/█/\\${FG}█\\${Reset}/g" <<< "$line" )
+   fline=$( sed -r "s/([╗═╔╚║╝])/\\${BG}\1\\${Reset}/g" <<< "$fline" )
    printf "%${offset_HEADER_02}s${fline}\n"
 done
 
@@ -97,7 +97,7 @@ _IP_ADDR=$( ip -f inet -4 -br address | grep $interface | awk '{print $3}' )
 
 _SEARCH="([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})(\.[0-9]{1,3})(/[0-9]{1,2})"
 _REPLACE="`printf "${TEXT}"`\\1`printf "${ACCENT}"`\2`printf "${Reset}"``printf "${TEXT}"`\\3`printf "${Reset}"`"
-_IP_ADDR=$(echo "$_IP_ADDR" | sed -E "s:${_SEARCH}:${_REPLACE}:g")
+_IP_ADDR=$( sed -E "s:${_SEARCH}:${_REPLACE}:g" <<< "$_IP_ADDR" )
 # Kinda a stupid way of going about this.
 # `sed` doesn't play nicely with '\e' or \033', only '\x1b'.
 
@@ -108,10 +108,10 @@ _CPU_FREE=$(top -n 1 | awk 'NR==3 { print $2 }' )
 #-----| Temperature |-----#
 _TEMP=$(sensors | grep -i -C1 "isa adapter")
 
-_TEMP_PRETTY=$( echo "$_TEMP" | awk 'NR==3 { print $4 }' )
-_TEMP_CURRENT=$( echo "$_TEMP" | awk 'NR==3 { print $4 }' | sed 's/[^0-9\.]//g')
-_TEMP_HIGH=$( echo "$_TEMP" | awk 'NR==3 { print $7 }' | sed 's/[^0-9\.]//g')
-_TEMP_CRIT=$( echo "$_TEMP" | awk 'NR==3 { print $10 }' | sed 's/[^0-9\.]//g')
+_TEMP_PRETTY=$( awk 'NR==3 { print $4 }' <<< "$_TEMP" )
+_TEMP_CURRENT=$( awk 'NR==3 { print $4 }' <<< "$_TEMP" | sed 's/[^0-9\.]//g')
+_TEMP_HIGH=$( awk 'NR==3 { print $7 }' <<< "$_TEMP" | sed 's/[^0-9\.]//g')
+_TEMP_CRIT=$( awk 'NR==3 { print $10 }' <<< "$_TEMP" | sed 's/[^0-9\.]//g')
 
 _IS_TEMP_GOOD=$(
    awk "BEGIN { print (${_TEMP_CURRENT} < ${_TEMP_HIGH} ? \"True\" : \"\")}"
@@ -135,12 +135,12 @@ _UPTIME=$( uptime | sed -E 's/.*up ([0-9]* (days?|min)\, )?[ ]?\,?[ ]*([0-9]+:[0
 #                                Format & Print
 #------------------------------------------------------------------------------
 _BIG_SPACER='──────────────────────────────────────────────────'
-_BIG_SPACER_length=$( echo $_BIG_SPACER | wc -m )
-_BIG_SPACER_offset=$( echo "($WIDTH - $_BIG_SPACER_length) / 2" | bc )
+_BIG_SPACER_length=$( wc -m <<< $_BIG_SPACER )
+_BIG_SPACER_offset=$( bc <<< "($WIDTH - $_BIG_SPACER_length) / 2" )
 
 _SMALL_SPACER='───────────────────────────'
-_SMALL_SPACER_length=$( echo $_SMALL_SPACER | wc -m )
-_SMALL_SPACER_offset=$( echo "($WIDTH - $_SMALL_SPACER_length) / 2" | bc )
+_SMALL_SPACER_length=$( wc -m <<< $_SMALL_SPACER )
+_SMALL_SPACER_offset=$( bc <<<  "($WIDTH - $_SMALL_SPACER_length) / 2" )
 
 # To correctly format, use the following offset formula:
 # >>> midpoint = WIDTH / 2
