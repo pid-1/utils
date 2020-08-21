@@ -1,234 +1,229 @@
 #!/usr/bin/env python3
+# conf v2.0
+#
+# Ground-up rewrite of last version of `conf`
+#
+# No pytests or coverage yet. Just did a cursory CLI test for
+# functionality. Certainly bugs. But seems to work alright. Will return
+# to clean up syntax at a later date.
 
-import re, argparse, configparser
-from os import system, path, environ
-from sys import argv
-from shutil import which
-from textwrap import dedent
+import os, sys, json, argparse
+from shutil     import which
+from textwrap   import dedent
+from easydict   import EasyDict
+from pathlib    import Path
+from tabulate   import tabulate
+from subprocess import Popen
 
-config = configparser.ConfigParser()
-conf_file = path.expanduser('~/.settings.ini')
+class C:
+   bk  = u'\u001b[30m'
+   rd  = u'\u001b[31m'
+   yl  = u'\u001b[33m'
+   gr  = u'\u001b[32m'
+   br  = u'\u001b[37;1m'
+   rst = u'\u001b[0m'
 
-def shorten(path):
+
+g = EasyDict()
+def config():
+   g.data = Path.home() / '.config/hre-utils/dotfiles.json'
+   if not g.data.parent.exists():
+      g.data.parent.mkdir(parents='True')
+
+   if not g.data.exists():
+      print(f'{C.br}◆{C.rst} Notice:')
+      print(f'    ├── Data file not found. Creating:')
+      print(f'    └── {g.data}')
+      g.data.write_text('{}')
+
+   g.editor = load_editor()
+
+
+def load_data():
+   with g.data.open('r') as f:
+      return json.load(f)
+
+
+def store_data(data):
+   with g.data.open('w+') as f:
+      json.dump(data, f, indent=4)
+
+
+def load_editor():
    '''
-   Shortens /home/<user> back to ~/,
-   It's the opposite of path.expanduser()
+   Order, top to bottom:
+      0. entry in .json file
+      1. env['EDITOR']
+      2. Installed
+         1. vim
+         2. emacs
+      3. If none yet, prompt user
    '''
-   pattern = f"^{environ['HOME']}"
-   return re.sub(pattern, '~', path)
+   # EDIT
+   # This whole section needs to be cleaned up. It 'works', but it's not
+   # elegant by any stretch of the imagination.
 
+   data = load_data()
+   editor_saved = False
 
-def find_editor():
-   '''
-   First checks if you've set an editor in environ.
-   if nothing, what editor you've installed,
-   if nothing, then it prompts to ask what editor you want to use.
-   '''
-   editor = environ.get('EDITOR')
-
-   if not editor:
-      if which('vim') and not which('emacs'):
-         editor = 'vim'
-      elif which('emacs') and not which('vim'):
-         editor = 'emacs'
-      else:
-         ans = input( "Select an editor, (vim/emacs)\n> " )
-         if ans not in ['vim', 'emacs']:
-            find_editor()
-
-   config.read(conf_file)
-   if 'System' not in config:
-      config['System'] = {}
-
-   config['System']['editor'] = editor
-
-   with open(conf_file, 'w') as f:
-      config.write(f)
-
-   return editor
-
-
-def create_config_skeleton():
-   '''Generates an example config at ~/.settings.example.'''
-
-   config['System'] = {}
-   config['Files'] = {}
-
-   with open('~/.settings.example', 'w') as f:
-      config.write(f)
-
-
-def create_config_example():
-   '''Generates a minimal config at ~/.settings.ini,
-   NUKES your current one if saved here. Be careful!'''
-
-   config['System'] = {'editor': 'vim'}
-
-   config['Files'] = {'vim': '/etc/vimrc',
-                      'bash': '~/.bashrc',
-                      'git': '~/.gitconfig',
-                      'i3': '~/.config/i3/config'}
-
-   with open(conf_file, 'w') as f:
-      config.write(f)
-
-
-def entry_add(name, location):
-   config.read(conf_file)
-
-   config['Files'][name] = shorten(location)
-
-   with open(conf_file, 'w') as f:
-      config.write(f)
-
-
-def edit(f):
-   '''Edits a file in your specified editor.'''
-   system('clear')
-   system(f'{editor} {f}')
-
-
-#-----| argparse |-----#
-# all my argparse nonsense
-
-def parse_args():
-   '''Handles command-line arguments for automation, or quicker use.'''
-
-   parser = argparse.ArgumentParser \
-      (description = dedent('''\
-         Utility to manage, add, and edit configuration files.
-
-         Tips:
-         * Careful generating new settings.ini, it will overwrite your current one
-         * To remove an option, delete it manually from the config file ~/.settings.ini
-         * Use brief but memorable nicknames to make opening config files faster
-         '''),
-      usage = '%(prog)s [-h] [-a -f FILE -n NAME] [-e NAME]',
-      formatter_class = argparse.RawTextHelpFormatter)
-
-   parser.add_argument \
-      ('-a', '--add',
-         help = "adds a new file to the config manager, requires -n/-f flags",
-         action = 'store_true',
-         default = False,
-         required = False)
-   parser.add_argument \
-      ('-f', '--file',
-         help = "specifies the location of the new config file.",
-         default = False,
-         required = False)
-   parser.add_argument \
-      ('-n', '--nickname',
-         help = "specifies a nickname for the config file.",
-         metavar = 'NAME',
-         default = False,
-         required = False)
-   parser.add_argument \
-      ('-e', '--edit',
-         help = "edits the file specified by nickname (e.g., conf -e bash)",
-         metavar = 'FILE',
-         default = False,
-         required = False)
-   parser.add_argument \
-      ('-c', '--config',
-         help = "edits conf's own config file",
-         action = 'store_true',
-         default = False,
-         required = False)
-   parser.add_argument \
-      ('--create',
-         help = dedent('''\
-         creates a config file:
-         'skeleton' nukes your current .ini and creates a fresh config
-         'example' creates an example config at ~/.settings.example\n
-         '''),
-         choices = ['skeleton', 'example'],
-         default = False,
-         required = False)
-
-   return parser.parse_args()
-
-
-def handle_args(args):
-   '''
-   Processes CLI args. Does the things it do.
-   '''
-   #-----| check |-----#
-   # if run without file and nickname
-   if args.add == True \
-      and args.file == False \
-      and args.nickname == False:
-         print( "\nMust specify a file name and nickname\n" )
-   # if run with file, without nickname
-   elif args.add == True \
-      and args.file != False \
-      and args.nickname == False:
-         print( "\nMust specify a nickname\n" )
-   # if run with nickname, without file
-   elif args.add == True \
-      and args.file == False \
-      and args.nickname != False:
-         print( "\nMust specify a file name\n" )
-
-   #-----| write |-----#
-   # if run with file and nickname
-   elif args.add == True \
-      and args.file != False \
-      and args.nickname != False:
-         print( "\nAdding file\n" )
-
-         entry_add(args.nickname, args.file)
-
-         print( "Config added.\n" )
-         print( "Name: '%s'\nFile: '%s'\n" % (args.nickname, args.file))
-
-   #-----| confs |-----#
-   # creates new default or empty config files
-   elif args.create == 'skeleton':
-      print("\nCONFIRM\n")
-      print("This will nuke any existing config at ~/.settings.ini.")
-      ans = input("Are you sure you want to proceed? (y)es | (n)o?\n> ")
-      if ans == 'y':
-         create_config_skeleton()
-         print("\nSkeleton config created.\n")
-      else:
-         print("\nInput not 'y'. Exiting.\n")
-
-   elif args.create == 'example':
-         create_config_example()
-
-   #-----| edit |-----#
-   # if run with -e flag, edit with set editor
-   elif args.edit != False:
-      config.read(conf_file)
+   def saved_editor():
       try:
-         edit_file = config['Files'][args.edit]
-         edit(edit_file)
-      except:
-         print( "\nFile doesn't seem to exist. Check the config.\n" )
+         return data['System'].get('Editor')
+         editor_saved = True
+      except KeyError:
+         return None
+
+
+   def prompt_editor():
+      acceptable_editors = ['vim', 'emacs']
+      editor = input(f'Select between {acceptable_editors}\n> ')
+      if editor not in acceptable_editors:
+         prompt_editor()
+      return editor
+
+   #                             Find Editor
+   #----------------------------------------------------------------------------
+   # Cascading list of options, priority is top to bottom
+   editor = saved_editor() \
+         or os.environ.get('EDITOR') \
+         or which('vim') \
+         or which('emacs') \
+         or prompt_editor()
+
+   if not editor_saved:
+      if 'System' not in data:
+         data['System'] = {}
+      data['System']['Editor'] = editor
+      store_data(data)
+
+   return which(editor)
+
+
+def parsearger():
+   '''
+   Parses CLI args.
+
+   Add files to edit with a easy to remember/type shorted nickname.
+   Run with the nickname of a saved file to bring up in your defined editor.
+   '''
+   parser = argparse.ArgumentParser(description=dedent('''\
+         Utility to allow for easy dotfile edits, without memorizing
+         the location of every config file on your system.
+         '''),
+         usage=f'{C.br}%(prog)s [edit] [--add -p PATH -n NAME] [--dump]{C.rst}',
+         formatter_class = argparse.RawTextHelpFormatter)
+
+   parser.add_argument('edit',
+      help     = 'Nickname of file to edit',
+      nargs    = '?')
+   parser.add_argument('-a', '--add',
+      help     = f'Add new file to the config manager (requires {C.br}-p{C.rst} & {C.br}-n{C.rst} flags)',
+      action   = 'store_true',
+      default  = False,
+      required = False)
+   parser.add_argument('-p', '--path',
+      help     = 'Path to the file',
+      metavar  = f'{C.br}PATH{C.rst}',
+      default  = False,
+      required = False)
+   parser.add_argument('-n', '--nickname',
+      help     = 'Nickname of the file',
+      metavar  = f'{C.br}NAME{C.rst}',
+      dest     = 'name',
+      default  = False,
+      required = False)
+   parser.add_argument('-d', '--dump',
+      help     = 'Prints saved files to stdout',
+      action   = 'store_true',
+      required = False)
+   parser.add_argument('-m', '--manual',
+      help     = 'Opens .json data file for manual editing',
+      action   = 'store_true',
+      required = False)
+
+   if len(sys.argv) == 1:
+      parser.print_help()
+
+   return parser.parse_args().__dict__
+
+
+def handle_args(edit, add, path, name, dump, manual):
+   '''
+   Takes parsed args, handles pre-determined actions for them.
+   Most of the tests for validity are done here.
+   '''
+   data = load_data()
+
+   #                                 EDIT
+   #----------------------------------------------------------------------------
+   if edit:
+      try:
+         path = data['Files'].get(edit)
+         if not path:
+            raise ValueError
+
+         Popen([g.editor, path]).communicate()
+
+      except KeyError:
+         print(f'{C.rd}◆{C.rst} Error:')
+         print(f'    └── No files added yet')
          raise SystemExit
-   elif args.config != False:
-      edit(conf_file)
+
+      except ValueError:
+         print(f'{C.rd}◆{C.rst} Error:')
+         print(f'    └── File "{C.br}{edit}{C.rst}" not found')
+         raise SystemExit
+
+   #                                 ADD
+   #----------------------------------------------------------------------------
+   if add:
+      verify_add(path, name)
+      if 'Files' not in data:
+         data['Files'] = {}
+
+      data['Files'][name] = str(Path(path).expanduser())
+      store_data(data)
+
+      print(f'{C.gr}◆{C.rst} Saved:')
+      print(f'    └── "{C.br}{path}{C.rst}" stored as "{C.br}{name}{C.rst}"')
+
+   #                                 DUMP
+   #----------------------------------------------------------------------------
+   if dump:
+      data = load_data()
+      if 'Files' in data:
+         table = [[name,path] for name,path in data.get('Files').items()]
+         print(tabulate(table))
+
+   #                                MANUAL
+   #----------------------------------------------------------------------------
+   if manual:
+      Popen([g.editor, g.data]).communicate()
 
 
-def main():
-   if not path.isfile(conf_file):
-      print( "\nConfig file not found. Generating at ~/.settings.ini" )
-      input( "\n<CR> to continue, or <ctrl>C to exit" )
-      create_config_skeleton()
+def verify_add(path, name):
+   errors = []
 
-   config.read(conf_file)
+   if not path:
+      errors.append(f'missing arg: {C.rd}-p{C.rst} or {C.rd}--path{C.rst}')
+   else:
+      if not Path(path).expanduser().exists():
+         errors.append(f'path ({C.br}{path}{C.rst}) does not exist')
 
-   global editor
-   try:
-      editor = config['System']['editor']
-   except KeyError:
-      editor = find_editor()
+   if not name:
+      errors.append(f'missing arg: {C.rd}-n{C.rst} or {C.rd}--name{C.rst}')
 
-   if len(argv) == 1:
-      print('Requires args. Run \'conf --help\' for examples.')
-   handle_args(parse_args())
+   if errors:
+      print(f'{C.rd}◆{C.rst} Errors:')
+      for idx,e in enumerate(errors):
+         if idx < (len(errors) - 1):
+            print('    ├── ', end='')
+         else:
+            print('    └── ', end='')
+         print(e)
+      raise SystemExit
 
 
 if __name__ == '__main__':
-   main()
+   config()
+   handle_args(**parsearger())

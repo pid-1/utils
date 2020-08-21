@@ -1,76 +1,65 @@
 #!/bin/bash
-# Backup utility using rsync + ssh
+# rsync backup util
 
-function usage() {
-   #[[ "$#" == "0" ]] && to=2 || ( to=$1 ; shift )
-   echo -e  "\nUSAGE:"
-   echo -e  "$0  [-h] [-is]\n"
-   echo -e  "Arguments:"
-   echo -e  "   -h | --help          Displays this help page\n"
-   echo -e  "   -i | --internal      Backs up to the internal drive"
-   echo -e  "   -s | --ssh           Backs up via SSH"
-   # echo -e "   -v | --verify        Verify backup by listing contents\n"
-   echo -e "\nExample:  backup -s\n"
-   exit
-}
-
-
-function backup_internal() {
+function backup_internal ()
+{
    sudo bash -c "mkdir /mnt/backup"
    sudo bash -c "mount /dev/nvme0n1p3 /mnt/backup/"
 
-   status=$?
-   if [[ "$status" != "0" ]] ; then
-    echo -e "\nmount exited with status $status.\n"
-    exit $status
+   if [[ $? -ne 0 ]] ; then
+      echo -e "--> Mount failed."
+      exit 1
    fi
 
-   rsync -a -P --delete-during \
-      /home/aurelius \
-         --exclude '.cache' \
-         --exclude '.thunderbird/' \
-         --exclude '.local' \
-         --exclude 'Music' \
-         --exclude 'Downloads' \
-      /mnt/backup/
+   sudo rsync -a -P --delete \
+      /home/aurelius/{Apps,bin,build,Documents,Picutres,wiki} \
+   /mnt/backup/aurelius/
+
+   sync ; sync ; sync
+
+   sudo rsync -a -P --delete \
+      /home/aurelius/.task \
+      /home/aurelius/.vim \
+         --exclude="view" \
+      /home/aurelius/.bashrc \
+      /home/aurelius/.taskrc \
+      /home/aurelius/.tmux.conf \
+      /home/aurelius/.vimrc \
+   /mnt/backup/dotfiles/
 
    sync ; sync ; sync
 
    sudo bash -c "umount /dev/nvme0n1p3"
    sudo bash -c "rmdir /mnt/backup"
-   exit 0
 }
 
 
-function backup_ssh() {
-   rsync -a -P --delete-during -e ssh \
-      /home/aurelius \
-         --exclude '.cache' \
-         --exclude '.thunderbird/' \
-         --exclude '.local' \
-         --exclude 'Music' \
-         --exclude 'Downloads' \
-      senatus:/home/aurelius/Backup/populus/
-   exit 0
+function backup_ssh ()
+{
+   rsync -a -P --delete -e ssh \
+      /home/aurelius/{Apps,bin,build,Documents,Picutres,wiki} \
+   senatus:/media/backup/populus/aurelius/
+
+   rsync -aLK --progress -e ssh \
+      /home/aurelius/.config \
+      /home/aurelius/.task \
+      /home/aurelius/.vim \
+         --exclude="view" \
+      /home/aurelius/.bashrc \
+      /home/aurelius/.taskrc \
+      /home/aurelius/.tmux.conf \
+      /home/aurelius/.vimrc \
+   senatus:/media/backup/populus/dotfiles/
 }
 
 
-# Exits if no args, displays usage
-[[ "$#" == "0" ]] && usage
+case $1 in
+   -i | --internal )
+      backup_internal ;;
 
-while [[ "$#" > "0" ]] ; do
-   case $1 in
+   -s | --ssh )
+      backup_ssh ;;
 
-      -h | --help )
-         usage ;;
-
-      -i | --internal )
-         backup_internal ;;
-
-      -s | --ssh )
-         backup_ssh ;;
-
-      *)
-         usage ;;
-   esac
-done
+   *) echo -e "--> Select option from (-i)nternal (-s)sh"
+      exit 1 ;;
+esac
