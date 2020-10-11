@@ -6,6 +6,10 @@
 # No pytests or coverage yet. Just did a cursory CLI test for
 # functionality. Certainly bugs. But seems to work alright. Will return
 # to clean up syntax at a later date.
+#
+# TODO
+# - Add a companion completion script. Will parse the .json config file
+#   to pull out the nicknames, allow tab completion
 
 import os, sys, json, argparse
 from shutil     import which
