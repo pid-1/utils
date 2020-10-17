@@ -1,31 +1,36 @@
 #!/bin/bash
 # rsync backup util
 
+rd="\033[31m"
+br="\033[37;1m"
+rs="\033[0m"
+
+
 function backup_internal ()
 {
    sudo bash -c "mkdir /mnt/backup"
    sudo bash -c "mount /dev/nvme0n1p3 /mnt/backup/"
 
    if [[ $? -ne 0 ]] ; then
-      echo -e "--> Mount failed."
+      printf "${rd}◆${rs} Mount failed."
       exit 1
    fi
 
    sudo rsync -a -P --delete \
-      /home/aurelius/{Apps,bin,build,Documents,Picutres,wiki} \
-   /mnt/backup/aurelius/
+      /home/aurelius/{Apps,bin,build,Documents,Pictures,wiki} \
+      /mnt/backup/aurelius/
 
    sync ; sync ; sync
 
    sudo rsync -a -P --delete \
+      --exclude "view/" \
       /home/aurelius/.task \
       /home/aurelius/.vim \
-         --exclude="view" \
       /home/aurelius/.bashrc \
       /home/aurelius/.taskrc \
       /home/aurelius/.tmux.conf \
       /home/aurelius/.vimrc \
-   /mnt/backup/dotfiles/
+      /mnt/backup/dotfiles/
 
    sync ; sync ; sync
 
@@ -37,19 +42,30 @@ function backup_internal ()
 function backup_ssh ()
 {
    rsync -a -P --delete -e ssh \
-      /home/aurelius/{Apps,bin,build,Documents,Picutres,wiki} \
-   senatus:/media/backup/populus/aurelius/
+      /home/aurelius/{Apps,bin,build,Documents,Pictures,wiki} \
+      senatus:/media/backup/populus/aurelius/
 
-   rsync -aLK --progress -e ssh \
-      /home/aurelius/.config \
-      /home/aurelius/.task \
-      /home/aurelius/.vim \
-         --exclude="view" \
-      /home/aurelius/.bashrc \
-      /home/aurelius/.taskrc \
-      /home/aurelius/.tmux.conf \
-      /home/aurelius/.vimrc \
-   senatus:/media/backup/populus/dotfiles/
+   rsync -aLKP --delete \
+      --exclude "view/" \
+      --exclude "undodir/" \
+      -e ssh \
+         /home/aurelius/.task \
+         /home/aurelius/.vim \
+         /home/aurelius/.bashrc \
+         /home/aurelius/.taskrc \
+         /home/aurelius/.tmux.conf \
+         /home/aurelius/.vimrc \
+      senatus:/media/backup/populus/dotfiles/
+
+   rsync -aLKP --delete \
+      -e ssh \
+         /home/aurelius/.config/hre-utils \
+         /home/aurelius/.config/i3 \
+         /home/aurelius/.config/neomutt/ \
+         /home/aurelius/.config/plover/ \
+         /home/aurelius/.config/rofi \
+         /home/aurelius/.config/qmk \
+      senatus:/media/backup/populus/dotfiles/.config/
 }
 
 
@@ -60,6 +76,7 @@ case $1 in
    -s | --ssh )
       backup_ssh ;;
 
-   *) echo -e "--> Select option from (-i)nternal (-s)sh"
+   *) printf "${rd}◆ ${rs}"
+      printf "Select option from (${br}-i${rs})nternal (${br}-s${rs})sh\n"
       exit 1 ;;
 esac
