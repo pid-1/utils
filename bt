@@ -1,0 +1,133 @@
+#!/bin/bash
+# bt.sh v1.0
+#
+# small application to manage bluetooth devices
+#
+# Config file should be in the format of:
+#  phone=3C:28:6D:F6:22:0F
+#  headphones=00:02:5B:D3:34:75
+# You can use a multi-word key, though it makes it more difficult to
+# type on the command line when connecting to the device. Comments are
+# stripped.
+#
+# Might not actually need to use the config file, as you can assign
+# aliases to connected devices. Will be able to build the map based on
+# alias -> identifier. Though you can't have multiple aliases connect to
+# the same ID, nor can you change the alias of a device which is not
+# connected. The config file has a few advantages. Also allows you to
+# sync the same device list across multiple devices. Hmm.
+# ...
+# I am undecided.
+#
+# Things to implement
+#bluetoothctl info $identifier | grep "paired"
+# ...
+#bluetoothctl connect $identifier
+#bluetoothctl set-alias $name
+
+
+rs="\033[0m"      # Reset
+gr="\033[32m"     # Green
+rd="\033[31m"     # Red
+yl="\033[33m"     # Yellow
+bk="\033[30m"     # Black (dim)
+br="\033[37;1m"   # White (bright)
+
+
+conf_dir="${HOME}/.config/hre-utils"
+[[ ! -d "$conf_dir" ]] && {
+   mkdir -p "$conf_dir"
+   printf "${br} ◆${rs} Created ${br}${conf_dir}${rs}\n"
+}
+
+
+conf_file="${conf_dir}/bt.conf"
+[[ ! -f "$conf_file" ]] && {
+   touch "$conf_file"
+   printf "${br} ◆${rs} Created ${br}${conf_file}${rs}.\n"
+}
+
+
+[[ ! $(cat "$conf_file") ]] && {
+   printf "${yl} ◆${rs} Config file empty\n"
+}
+
+
+load_config()
+{
+   while read -r line ; do
+      CHAR1=$( sed -E 's/(.).*/\1/g' <<< "$line" )
+      [[ "$CHAR1" == '#' ]] && continue
+
+      IFS='=' read -r key value <<< "$line"
+      device_map["${key}"]="$value"
+   done < "$conf_file"
+}
+
+
+list_devices() {
+   # Devices in `bluetoothctl`
+   mapfile devices < <(bluetoothctl devices)
+   printf "${gr} ◆${rs} bluetoothctl devices\n"
+
+   for (( i=0; i<${#devices[*]}; i++ )) ; do
+      line="${devices[$i]}"
+
+      tree='├─'
+      [[ $i -eq $(( ${#devices[@]} - 1 )) ]] && tree='└─'
+
+      read _ identifier name <<< "$line"
+      printf "     ${bk}${tree}${rs} $identifier  $name\n"
+   done
+
+   # Devices in config file
+   printf "${gr} ◆${rs} config devices\n"
+
+   idx=0
+   for name in "${!device_map[@]}" ; do
+      identifier="${device_map[${name}]}" 
+
+      tree='├─'
+      [[ $idx -eq $(( ${#device_map[@]} - 1 )) ]] && tree='└─'
+      ((idx++))
+
+      printf "     ${bk}${tree}${rs} $identifier  $name\n"
+   done
+}
+
+
+connect_to() {
+   name="$1"
+
+   identifier="${device_map["${name}"]-}"    # Check out parameter expansion for
+   [[ -z "$identifier" ]] && return 1        # an explanation on this nonsense.
+
+   printf "${gr} ◆${rs} "
+   sudo bluetoothctl --timeout 3 connect $identifier
+   return 0
+}
+
+
+declare -A device_map
+load_config
+
+
+case "$1" in
+   'ls')
+      list_devices
+      ;;
+   'on')
+      sudo bluetoothctl power on &>/dev/null
+      printf "${gr} ◆${rs} Power on\n"
+      ;;
+   'off')
+      sudo bluetoothctl power off &>/dev/null
+      printf "${rd} ◆${rs} Power off\n"
+      ;;
+   *)
+      connect_to "$1" || {
+         printf "${rd} ◆${rs} Option or command \"${br}$1${rs}\" unknown\n"
+         exit 1
+      }
+   ;;
+esac
