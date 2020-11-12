@@ -1,8 +1,9 @@
 #!/bin/bash
 # bt.sh v1.0
+# Small application to manage bluetooth devices
 #
-# small application to manage bluetooth devices
-#
+#                                    NOTES 
+#-------------------------------------------------------------------------------
 # Config file should be in the format of:
 #  phone=3C:28:6D:F6:22:0F
 #  headphones=00:02:5B:D3:34:75
@@ -10,20 +11,31 @@
 # type on the command line when connecting to the device. Comments are
 # stripped.
 #
-# Might not actually need to use the config file, as you can assign
-# aliases to connected devices. Will be able to build the map based on
-# alias -> identifier. Though you can't have multiple aliases connect to
-# the same ID, nor can you change the alias of a device which is not
-# connected. The config file has a few advantages. Also allows you to
-# sync the same device list across multiple devices. Hmm.
-# ...
-# I am undecided.
+# Still not entirely sure how to manage this. It's supposed to be a
+# clear and concise wrapper around bluetoothctl, making it easier to
+# quickly connect to a known BT device.
 #
-# Things to implement
-#bluetoothctl info $identifier | grep "paired"
-# ...
-#bluetoothctl connect $identifier
-#bluetoothctl set-alias $name
+# I feel the config file may add an extra unnecessary step, as running
+# `bluetoothctl devices` pretty much accomplishes the same thing.
+# Maybe tab-completing the friendly name will actually auto-populate
+# the identifier on the command line?
+#
+# The config file effectively switches which is the "key". Reading from btctl's
+# output, the key must be the identifier. For the config file, it maps a unique
+# friendly name to the id.
+#
+# Maybe both? First try to see if there's a matching entry in the config file,
+# if not try to do it based on the ID directly? Effectively it's to create a
+# "shortcut".
+#
+# Been working on the completion script in ./completion/_bt.sh, and it's been...
+# rough. Unsure how to best implement it. Had a good idea for using colored
+# output from CLI completion, but `complete` can only do raw text.
+#
+# I think I have the _skeleton_ for a pretty solid wrapper around bluetoothctl.
+#
+#                                     TODO
+#-------------------------------------------------------------------------------
 
 
 rs="\033[0m"      # Reset
@@ -99,12 +111,16 @@ list_devices() {
 connect_to() {
    name="$1"
 
-   identifier="${device_map["${name}"]-}"    # Check out parameter expansion for
-   [[ -z "$identifier" ]] && return 1        # an explanation on this nonsense.
+   identifier="${device_map[${name}]-}"
+   [[ -z "$identifier" ]] && {
+      printf "${rd} ◆${rs} Option or command \"${br}$1${rs}\" unknown\n"
+      exit 1
+   }
 
    printf "${gr} ◆${rs} "
    sudo bluetoothctl --timeout 3 connect $identifier
-   return 0
+
+   [[ $? -ne 0 ]] && printf "${rd} ◆${rs} Failed to connect to $name"
 }
 
 
@@ -124,10 +140,10 @@ case "$1" in
       sudo bluetoothctl power off &>/dev/null
       printf "${rd} ◆${rs} Power off\n"
       ;;
+   'alias')
+      sudo bluetoothctl alias "$1"
+      ;;
    *)
-      connect_to "$1" || {
-         printf "${rd} ◆${rs} Option or command \"${br}$1${rs}\" unknown\n"
-         exit 1
-      }
+      connect_to "$1"
    ;;
 esac

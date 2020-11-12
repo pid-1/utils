@@ -9,9 +9,9 @@
 #-------------------------------------------------------------------------------
 function _conf_completion ()
 {
-   [[ "${#COMP_WORDS[@]}" -ne 2 ]] && return
+   [[ "${#COMP_WORDS[*]}" -ne 2 ]] && return
 
-   COMPREPLY=( $(compgen -W "${_FILES[@]}" -- "${COMP_WORDS[1]}") )
+   COMPREPLY=( $(compgen -W "${_FILES[*]}" -- "${COMP_WORDS[1]}") )
 }
 
 #                                  load data
