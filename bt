@@ -1,42 +1,11 @@
 #!/bin/bash
 # bt.sh v1.0
-# Small application to manage bluetooth devices
+# Small CLI application to streamline connecting to paired BT devices
 #
-#                                    NOTES 
-#-------------------------------------------------------------------------------
-# Config file should be in the format of:
-#  phone=3C:28:6D:F6:22:0F
-#  headphones=00:02:5B:D3:34:75
-# You can use a multi-word key, though it makes it more difficult to
-# type on the command line when connecting to the device. Comments are
-# stripped.
-#
-# Still not entirely sure how to manage this. It's supposed to be a
-# clear and concise wrapper around bluetoothctl, making it easier to
-# quickly connect to a known BT device.
-#
-# I feel the config file may add an extra unnecessary step, as running
-# `bluetoothctl devices` pretty much accomplishes the same thing.
-# Maybe tab-completing the friendly name will actually auto-populate
-# the identifier on the command line?
-#
-# The config file effectively switches which is the "key". Reading from btctl's
-# output, the key must be the identifier. For the config file, it maps a unique
-# friendly name to the id.
-#
-# Maybe both? First try to see if there's a matching entry in the config file,
-# if not try to do it based on the ID directly? Effectively it's to create a
-# "shortcut".
-#
-# Been working on the completion script in ./completion/_bt.sh, and it's been...
-# rough. Unsure how to best implement it. Had a good idea for using colored
-# output from CLI completion, but `complete` can only do raw text.
-#
-# I think I have the _skeleton_ for a pretty solid wrapper around bluetoothctl.
-#
-#                                     TODO
-#-------------------------------------------------------------------------------
-
+# The more I work on this project, the more I realize that the entire
+# thing can be accomplished by just aliasing "bt" to "sudo bluetoothctl"
+# and creating a completion script for it. Don't even need this utility
+# at all.
 
 rs="\033[0m"      # Reset
 gr="\033[32m"     # Green
@@ -46,41 +15,27 @@ bk="\033[30m"     # Black (dim)
 br="\033[37;1m"   # White (bright)
 
 
-conf_dir="${HOME}/.config/hre-utils"
-[[ ! -d "$conf_dir" ]] && {
-   mkdir -p "$conf_dir"
-   printf "${br} ◆${rs} Created ${br}${conf_dir}${rs}\n"
-}
-
-
-conf_file="${conf_dir}/bt.conf"
-[[ ! -f "$conf_file" ]] && {
-   touch "$conf_file"
-   printf "${br} ◆${rs} Created ${br}${conf_file}${rs}.\n"
-}
-
-
-[[ ! $(cat "$conf_file") ]] && {
-   printf "${yl} ◆${rs} Config file empty\n"
-}
-
-
-load_config()
-{
-   while read -r line ; do
-      CHAR1=$( sed -E 's/(.).*/\1/g' <<< "$line" )
-      [[ "$CHAR1" == '#' ]] && continue
-
-      IFS='=' read -r key value <<< "$line"
-      device_map["${key}"]="$value"
-   done < "$conf_file"
+usage() {
+   script_name="$(basename ${BASH_SOURCE})"
+   printf "\nUSAGE:\n"
+   printf "${br}${script_name}${rs} [on|off|ls|gui|help] [c <device ID>] [alias <name>]\n"
+   printf "\nArg options:\n"
+   printf "   ${gr}c${rs}      <deviceID>   --   connects to device by ID\n"
+   printf "   ${gr}alias${rs}  <name>       --   aliases the connected device\n"
+   printf "NoArg options:\n"
+   printf "   ${gr}on${rs}                  --   turns on bluetooth\n"
+   printf "   ${gr}off${rs}                 --   turns off bluetooth\n"
+   printf "   ${gr}ls${rs}                  --   lists available bluetooth devices\n"
+   printf "   ${gr}gui${rs}                 --   launches \`blueman-applet\`\n\n"
+   
+   exit $1
 }
 
 
 list_devices() {
    # Devices in `bluetoothctl`
    mapfile devices < <(bluetoothctl devices)
-   printf "${gr} ◆${rs} bluetoothctl devices\n"
+   printf "${gr} ◆${rs} bluetooth devices\n"
 
    for (( i=0; i<${#devices[*]}; i++ )) ; do
       line="${devices[$i]}"
@@ -91,46 +46,14 @@ list_devices() {
       read _ identifier name <<< "$line"
       printf "     ${bk}${tree}${rs} $identifier  $name\n"
    done
-
-   # Devices in config file
-   printf "${gr} ◆${rs} config devices\n"
-
-   idx=0
-   for name in "${!device_map[@]}" ; do
-      identifier="${device_map[${name}]}" 
-
-      tree='├─'
-      [[ $idx -eq $(( ${#device_map[@]} - 1 )) ]] && tree='└─'
-      ((idx++))
-
-      printf "     ${bk}${tree}${rs} $identifier  $name\n"
-   done
-}
-
-
-connect_to() {
-   name="$1"
-
-   identifier="${device_map[${name}]-}"
-   [[ -z "$identifier" ]] && {
-      printf "${rd} ◆${rs} Option or command \"${br}$1${rs}\" unknown\n"
-      exit 1
-   }
-
-   printf "${gr} ◆${rs} "
-   sudo bluetoothctl --timeout 3 connect $identifier
-
-   [[ $? -ne 0 ]] && printf "${rd} ◆${rs} Failed to connect to $name"
 }
 
 
 declare -A device_map
-load_config
-
 
 case "$1" in
-   'ls')
-      list_devices
+   'c'|'connect')
+      sudo bluetoothctl connect "$1"
       ;;
    'on')
       sudo bluetoothctl power on &>/dev/null
@@ -140,10 +63,17 @@ case "$1" in
       sudo bluetoothctl power off &>/dev/null
       printf "${rd} ◆${rs} Power off\n"
       ;;
+   'ls'|'list')
+      list_devices
+      ;;
    'alias')
       sudo bluetoothctl alias "$1"
       ;;
-   *)
-      connect_to "$1"
-   ;;
+   'gui')
+      sudo blueman-applet
+      ;;
+   'help'|'--help'|'-h')
+      usage 0
+      ;;
+   *) usage 1 ;;
 esac

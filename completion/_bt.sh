@@ -39,28 +39,28 @@
 # Slightly better than the previous option, as we can define a minimum number
 # of characters to be entered before matching starts. Cuts down on the amount
 # of times it'll fail. But it still will.
+#
+# Turns out the more I've worked on this project, the more I've realized I'm
+# just making a completion script for bluetoothctl, not 
+#
+# Yup, the whole process of making this was pointless. Unlike `dr`, my
+# wrapper around `docker` commands, this doesn't really serve any purpose.
+# Turns out tab completion was sufficient to cover all my use cases. 
 
 
-function _bt_completion ()
+_BT_COMP_CONNECT ()
 {
-   [[ "${#COMP_WORDS[@]}" -ne 2 ]] && return
-
    declare -a _DEVICES
 
    while read -r _ id name ; do
-      #_DEVICES+=("${id} ${name}")
       _DEVICES+=("${id//:/.}  ${name}")
    done < <(bluetoothctl devices)
 
    local IFS=$'\n'
 
-   #local _OPTS=( $(compgen -W "${_DEVICES[*]}" -- "${COMP_WORDS[1]}") )
-   #local _OPTS=( $(compgen -W "${_DEVICES[*]}" | grep -i "${COMP_WORDS[1]}") )
    local _OPTS=( $(compgen -W "${_DEVICES[*]}" | grep -iF "${COMP_WORDS[$COMP_CWORD]}") )
 
    [[ "${#_OPTS[@]}" -eq 1 ]] && {
-      #COMPREPLY=( "${_OPTS[@]#* }" )    # <-- name completion
-      #COMPREPLY=( "${_OPTS[@]%% *}" )   # <-- name completion
       _OPT="${_OPTS[@]%% *}" 
       COMPREPLY=( "${_OPT//./:}" )
    } || {
@@ -68,23 +68,38 @@ function _bt_completion ()
          COMPREPLY+=( "$( printf '%-*s' $(tput cols) "$_RES")" )
       done;
    }
-
-   #                           FILE COMPLETION
-   #----------------------------------------------------------------------------
-   #declare -a OPTS
-
-   #while read -r line ; do
-   #   CHAR1=$( sed -E 's/(.).*/\1/g' <<< "$line" )
-   #   [[ "$CHAR1" == '#' ]] && continue
-
-   #   IFS='=' read -r key value <<< "$line"
-   #   #OPTS+=("$key" "$value")
-   #   OPTS+=("$key")
-   #done < "${HOME}/.config/hre-utils/bt.conf"
-
-   #COMPREPLY=( $(compgen -W "${OPTS[*]}" -- "${COMP_WORDS[1]}") )
-   #----------------------------------------------------------------------------
 }
 
 
-complete -F _bt_completion bt
+_BT_COMP_MAIN () {
+   local cur="${COMP_WORDS[$COMP_CWORD]}"
+   local prev="${COMP_WORDS[$COMP_CWORD - 1]}"
+
+   local opts=(
+         'alias'
+         'devices'
+         'paired-devices'
+         'power'
+         'connect'
+         'disconnect'
+   )
+
+   [[ ${COMP_CWORD} == 1 ]] && {
+      COMPREPLY=($(compgen -W "${opts[*]}" -- "$cur"))
+   } || {
+      case "${prev}" in
+         'alias'|'devices'|'paired-devices'|'disconnect')
+            return
+            ;;
+         'power')
+            COMPREPLY=($(compgen -W 'on off' -- "$cur"))
+            ;;
+         'connect')
+            _BT_COMP_CONNECT
+            ;;
+      esac
+   }
+}
+
+#_BT_COMP_MAIN
+complete -F _BT_COMP_MAIN bt
