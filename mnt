@@ -1,51 +1,54 @@
 #!/bin/bash
 # mnt v0.1
-
-# Only list partitions (not disks) that are not:
-#  - sda  (Windows)
-#  - nvme (Linux)
-#  - sdb  (Data)
-options=( $(lsblk -ln -o name,type | grep -vE 'disk|sda|sdb|nvme0' | awk '{print $1}') )
-len=${#options[@]}
-
+#
+# TODO
+# Should probably make a 1-line untracked config file here so this is portable
+# across systems. Want to be able to use on my laptop(s) and desktop. A text
+# file whose values I'm reading into the `grep -vE` would be useful.
 
 # Color:
 red()   { echo -ne "\e[31m${1}\e[0m" ;}
 green() { echo -ne "\e[32m${1}\e[0m" ;}
 
-
 mount_device()
 {
    device="$1"
 
-   # If there's no dir with the name of the mount point,
-   # create the directory, and mount the drive to it
-   if [[ ! -d /mnt/$device ]] ; then
-      sudo bash -c "mkdir /mnt/$device" && \
-      sudo bash -c "mount /dev/$device /mnt/$device"
-      exit 2
-   fi
-
    # If the dir exists, and something is already mounted to it
    if [[ -d /mnt/$device ]] && [[ $(lsblk -o mountpoint | grep "/mnt/$device") ]] ; then
       red "◆ " ; echo -e "Disk already mounted to /dev/$device."
-      exit 3
+      exit 1
    fi
 
    # If the dir exists, but is empty, mount to it
    if [[ -d /mnt/$device ]] && [[ ! $(ls -A /mnt/$device) ]] ; then
-      sudo bash -c "mount /dev/$device /mnt/$device"
+      sudo "mount /dev/$device /mnt/$device"
+      exit $?
+   fi
+
+   # If there's no dir with the name of the mount point,
+   # create the directory, and mount the drive to it
+   if [[ ! -d /mnt/$device ]] ; then
+      sudo mkdir "/mnt/$device" && \
+      sudo mount "/dev/$device /mnt/$device"
+      exit $?
    fi
 }
 
 
-# Exit 1 -- no devices found
+options=( $(lsblk -ln -o name,type | grep -vE '(disk|sda|sdb|nvme0)' | awk '{print $1}') )
+len=${#options[@]}
+
+
+# No devices--exit 1
 if [[ $len -eq 0 ]] ; then
    red "◆ " ; echo "No devices found"
    exit 1
+# Single device--mount without prompt
 elif [[ $len -eq 1 ]] ; then
    green "◆ " ; echo "One device found (${options[0]}) -- mounting"
    mount_device ${options[0]}
+# Multiple devices--prompt user
 else
    green "◆ " ; echo -e "Select:"
    PS3="Choose by <number>: "
