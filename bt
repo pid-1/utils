@@ -1,0 +1,79 @@
+#!/bin/bash
+# bt.sh v1.0
+# Small CLI application to streamline connecting to paired BT devices
+#
+# The more I work on this project, the more I realize that the entire
+# thing can be accomplished by just aliasing "bt" to "sudo bluetoothctl"
+# and creating a completion script for it. Don't even need this utility
+# at all.
+
+rs="\033[0m"      # Reset
+gr="\033[32m"     # Green
+rd="\033[31m"     # Red
+yl="\033[33m"     # Yellow
+bk="\033[30m"     # Black (dim)
+br="\033[37;1m"   # White (bright)
+
+
+usage() {
+   script_name="$(basename ${BASH_SOURCE})"
+   printf "\nUSAGE:\n"
+   printf "${br}${script_name}${rs} [on|off|ls|gui|help] [c <device ID>] [alias <name>]\n"
+   printf "\nArg options:\n"
+   printf "   ${gr}c${rs}      <deviceID>   --   connects to device by ID\n"
+   printf "   ${gr}alias${rs}  <name>       --   aliases the connected device\n"
+   printf "NoArg options:\n"
+   printf "   ${gr}on${rs}                  --   turns on bluetooth\n"
+   printf "   ${gr}off${rs}                 --   turns off bluetooth\n"
+   printf "   ${gr}ls${rs}                  --   lists available bluetooth devices\n"
+   printf "   ${gr}gui${rs}                 --   launches \`blueman-applet\`\n\n"
+   
+   exit $1
+}
+
+
+list_devices() {
+   # Devices in `bluetoothctl`
+   mapfile devices < <(bluetoothctl devices)
+   printf "${gr} ◆${rs} bluetooth devices\n"
+
+   for (( i=0; i<${#devices[*]}; i++ )) ; do
+      line="${devices[$i]}"
+
+      tree='├─'
+      [[ $i -eq $(( ${#devices[@]} - 1 )) ]] && tree='└─'
+
+      read _ identifier name <<< "$line"
+      printf "     ${bk}${tree}${rs} $identifier  $name\n"
+   done
+}
+
+
+declare -A device_map
+
+case "$1" in
+   'c'|'connect')
+      sudo bluetoothctl connect "$1"
+      ;;
+   'on')
+      sudo bluetoothctl power on &>/dev/null
+      printf "${gr} ◆${rs} Power on\n"
+      ;;
+   'off')
+      sudo bluetoothctl power off &>/dev/null
+      printf "${rd} ◆${rs} Power off\n"
+      ;;
+   'ls'|'list')
+      list_devices
+      ;;
+   'alias')
+      sudo bluetoothctl alias "$1"
+      ;;
+   'gui')
+      sudo blueman-applet
+      ;;
+   'help'|'--help'|'-h')
+      usage 0
+      ;;
+   *) usage 1 ;;
+esac
