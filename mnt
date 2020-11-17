@@ -16,38 +16,40 @@ green() { echo -ne "\e[32m${1}\e[0m" ;}
 
 mount_device()
 {
-   device="$1"
+   device=$(sed 's/ /_/g' <<< "$1")
 
    # If there's no dir with the name of the mount point,
    # create the directory, and mount the drive to it
    if [[ ! -d /mnt/$device ]] ; then
-      sudo bash -c "mkdir /mnt/$device" && \
-      sudo bash -c "mount /dev/$device /mnt/$device"
-      exit 2
+      sudo mkdir /mnt/$device && sudo mount /dev/$device /mnt/$device
    fi
 
-   # If the dir exists, and something is already mounted to it
+   # If the dir exists, and something is already mounted to it,
+   # Print warning and exit
    if [[ -d /mnt/$device ]] && [[ $(lsblk -o mountpoint | grep "/mnt/$device") ]] ; then
-      red "◆ " ; echo -e "Disk already mounted to /dev/$device."
+      red " ◆ " ; echo -e "Disk already mounted to /dev/$device."
       exit 3
    fi
 
-   # If the dir exists, but is empty, mount to it
+   # If the dir exists, but is empty
+   # Mount to it
    if [[ -d /mnt/$device ]] && [[ ! $(ls -A /mnt/$device) ]] ; then
       sudo bash -c "mount /dev/$device /mnt/$device"
    fi
 }
 
 
-# Exit 1 -- no devices found
+# If 0 devices -- no action possible, exit
 if [[ $len -eq 0 ]] ; then
-   red "◆ " ; echo "No devices found"
+   red " ◆ " ; echo "No devices found"
    exit 1
+# If 1 devices -- no choice required, automound
 elif [[ $len -eq 1 ]] ; then
-   green "◆ " ; echo "One device found (${options[0]}) -- mounting"
+   green " ◆ " ; echo "One device found (${options[0]}) -- mounting"
    mount_device ${options[0]}
+# If 2+ devices -- prompt for user input
 else
-   green "◆ " ; echo -e "Select:"
+   green " ◆ " ; echo -e "Select:"
    PS3="Choose by <number>: "
    select device in "${options[@]}" ; do
       mount_device $device

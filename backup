@@ -43,7 +43,7 @@ function backup_ssh ()
 {
    rsync -a -P --delete -e ssh \
       /home/aurelius/{Apps,bin,build,Documents,Pictures,wiki} \
-      senatus:/media/backup/populus/aurelius/
+      senatus:/tidepool/backup/aurelius/populus/aurelius/
 
    rsync -aLKP --delete \
       --exclude "view/" \
@@ -55,7 +55,7 @@ function backup_ssh ()
          /home/aurelius/.taskrc \
          /home/aurelius/.tmux.conf \
          /home/aurelius/.vimrc \
-      senatus:/media/backup/populus/dotfiles/
+      senatus:/tidepool/backup/aurelius/populus/dotfiles/
 
    rsync -aLKP --delete \
       -e ssh \
@@ -65,7 +65,7 @@ function backup_ssh ()
          /home/aurelius/.config/plover/ \
          /home/aurelius/.config/rofi \
          /home/aurelius/.config/qmk \
-      senatus:/media/backup/populus/dotfiles/.config/
+      senatus:/tidepool/backup/aurelius/populus/dotfiles/.config/
 }
 
 
