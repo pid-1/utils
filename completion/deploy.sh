@@ -7,3 +7,5 @@ for compfile in $(ls "$PROGDIR") ; do
    [[ "$compfile" == "deploy.sh" ]] && continue
    sudo ln -s "${PROGDIR}/${compfile}" /etc/bash_completion.d/
 done
+
+source /etc/bash_completion.d/*.{bash,sh}

@@ -29,7 +29,7 @@ data_file="${config_path}/logfile.txt"
 usage () {
 cat << EOF
 
-USAGE: $(basename ${BASH_SOURCE[0]}) [--read <rows>]
+USAGE: $(basename ${BASH_SOURCE[0]}) [--read <int:rows>]
 
 Run the utility. It opens 'vim' in insert mode. Type an entry to save to the
 logfile. Some minor processing is done before saving the line:
@@ -57,44 +57,73 @@ setup () {
 
 
 read_entries () {
-   num_entries=$1
-   [[ ! ${num_entries} =~ ^[0-9]+$ ]] && {
-      printf "${rd}◆${rst} Invalid read value: ${br}${num_entries}${rst}. "
+   found_entries=$1
+   [[ ! ${found_entries} =~ ^[0-9]+$ ]] && {
+      printf "${rd}◆${rst} Invalid read value "${br}${found_entries}${rst}". "
       printf "Must be int.\n"
    }
 
    declare -a lines
    readarray raw_lines < "$data_file"
 
-
    len=${#raw_lines[@]}
-   while [[ ${len} -ge 1 ]] && [[ ${num_entries} -ge 0 ]] ; do
-      len=$((${len}-1))
+   while [[ ${len} -gt 0 ]] && [[ ${found_entries} -gt 0 ]] ; do
+      ((len=$len-1))
       line="${raw_lines[$len]}"
 
-      echo -e "Line ($len): "${line}""
-
-      ## Toss out blank lines, or empty newlines
-      #[[ ${line} == '' ]] && continue
-      #[[ ${line} =~ \n ]] && continue
-
-      ## Continuation line
-      #[[ ${line} =~ '^[ ]{19}.*$' ]] && {
-      #   lines+=${line}
-      #   continue
-      #}
-
-      #lines+=${line}
-      #len=$((${len}-1))
-      #num_entries=$((${num_entries}-1))
+      # Continuation line
+      if [[ ${line} =~ ^\ {19}.* ]] ; then
+         lines+="${line}"
+         continue
+      else
+         lines+="${line}"
+         ((found_entries=$found_entries-1))
+      fi
    done
 
-   #echo "${lines[@]}"
+   # God is this an awful approach.
+   # Iterates backwards through the text file, adds to the end of an array, then
+   # reads backwards through the array... to get forwards output. That's genuine
+   # insanity. It's midnight. And this """works""". Time to turn in for tonight,
+   # can work on doing it correctly tomorrow.
+
+   mapfile -d $'\n' lines <<< "${lines[@]}"
+   len="${#lines[@]}"
+   while [[ $len -ge 0 ]] ; do
+      printf "${lines[$len]}"
+      ((len=$len-1))
+   done
 }
 
 
 add_entry () {
    today="$(date '+%Y/%b/%d %H:%M')"
+   spacer="$(for i in {1..19} ; do printf ' ' ; done)"
+
+   tmp=$(mktemp --suffix=.txt)
+   echo -e "\n#------------------------- LOGFILE --------------------------" >> ${tmp}
+   echo "# Write quick notes, in case you need to refer to them in the" >> ${tmp}
+   echo "# future. You are already in insert mode. Just start writing." >> ${tmp}
+   echo "# Comments, empty lines, and blank newlines will be stripped." >> ${tmp}
+
+   # the `|| exit` allows the user to `:cq` without the script continuing.
+   vim -c "norm! ggO" -c 'startinsert' -c 'set wrap tw=61 cc=62' ${tmp} || exit 1
+
+   readarray lines < ${tmp}
+   for idx in "${!lines[@]}" ; do
+      line="${lines[$idx]}"
+
+      [[ "${line}" == '' ]] && continue
+      [[ "${line}" == $'\n' ]] && continue
+      [[ "${line}" =~ ^\ *#.* ]] && continue
+
+      if [[ $idx -eq 0 ]] ; then
+         printf "${today}  ${line}" >> ${data_file}
+         continue
+      else
+         printf "${spacer}${line//.*\n+$//}" >> ${data_file}
+      fi
+   done
 }
 
 
