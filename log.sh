@@ -1,13 +1,16 @@
 #!/bin/bash
-# New version of a my quick notetaking utility.
-# If I'm about to install software, uninstall software, make changes to
-# a config file, and want a place to jot down what I've done. The
-# previous version has been _invaluable_ to recall a change I've made
-# two weeks ago at 2am.
+# New version of a my quick notetaking utility.  If I'm about to install
+# software, uninstall software, make changes to a config file, and want a place
+# to jot down what I've done. The previous version has been _invaluable_ to
+# recall a change I've made two weeks ago at 2am.
 #
-# It is important to have the text in a plaintext file, so output can be
-# parsed on the commandline if necessary. As well as using operations
-# like grep to quickly search.
+# It is important to have the text in a plaintext file, so output can be parsed
+# on the commandline if necessary. As well as using operations like grep to
+# quickly search.
+
+#                                   INIT
+#-------------------------------------------------------------------------------
+trap cleanup EXIT
 
 rst="\033[0m"     # Reset
 gr="\033[32m"     # Green
@@ -16,9 +19,17 @@ yl="\033[33m"     # Yellow
 bk="\033[30m"     # Black (dim)
 br="\033[37;1m"   # White (bright)
 
+cup="\033[1A"     # Cursor up 1 line
+cfw="\033[20C"    # Cursor forward 20 characters
 
 config_path="${HOME}/.config/hre-utils"
 data_file="${config_path}/logfile.txt"
+
+#                                 FUNCTIONS
+#===============================================================================
+cleanup () {
+   printf "$rst"
+}
 
 
 usage () {
@@ -40,11 +51,29 @@ exit $?
 
 
 setup () {
-   [[ ! -d "${config_path}" ]] && {
-      printf "${br}◆${rst} ${config_path} not found -- creating\n"
-      mkdir -p ${config_path}
-      exit 0
-   }
+   if [[ ! -d "${config_path}" ]]
+   then
+      printf "${yl}◆${rst} ${config_path} not found\n"
+      printf "   ${bk}└──${rst} Create? (Y/n) >> ${br}"
+
+      read ans ; printf "$rst"  #  <-- read response, reset color
+
+      if [[ $ans == '' ]] || [[ $ans =~ [Yy](es)? ]]
+      then
+         out="$(mkdir -p ${config_path})"
+         [[ $? -eq 0 ]] && {
+            printf "${cup}${cfw}${gr} Created${rst}\n"
+            sleep 0.5
+         } || {
+            printf "${cup}${cfw}${rd} ERROR${rst}\n"
+            printf "        ${bk}└──${rst} ${out}\n"
+            exit 1
+         }
+      else
+         printf "${cup}${cfw}${rd} Aborted${rst}\n"
+         exit 0
+      fi
+   fi
 
    [[ ! $(which vim 2>/dev/null) ]] && {
       printf "${rd}◆${rst} vim not found in \$PATH. Fuck you.\n"
@@ -53,6 +82,8 @@ setup () {
 }
 
 
+#                                     I/O
+#-------------------------------------------------------------------------------
 read_entries () {
    found_entries=$1
    [[ ! ${found_entries} =~ ^[0-9]+$ ]] && {
@@ -174,6 +205,8 @@ quick_entry () {
 }
 
 
+#                                    ENGAGE
+#===============================================================================
 setup
 
 case "$1" in
