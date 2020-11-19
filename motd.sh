@@ -128,8 +128,14 @@ _IS_TEMP_CRIT=$(
 [[ $_IS_TEMP_CRIT ]] && _TEMP_COLOR="${CRIT}"
 
 #-----| Uptime |-----#
-_UPTIME=$( uptime | sed -E 's/.*up ([0-9]* (days?|min)\, )?[ ]?\,?[ ]*([0-9]+:[0-9]+)?.*/\1\3/g' )
-
+# Dropping this version of `uptime`. I can't find a good reference for all the
+# possible output from uptime. Every couple days I find a new way it outputs
+# time. Switching to `uptime -p`. Easier to parse.
+#_UPTIME=$( uptime | sed -E 's/.*up ([0-9]* (days?|min)\, )?[ ]?\,?[ ]*([0-9]+:[0-9]+)?.*/\1\3/g' )
+#_UPTIME=$( awk '{print $2 " " $3}' < <(uptime -p) | sed 's/\,//g' )
+#
+# Nvm, with a bit of help got a `sed` command that works:
+_UPTIME=$( sed -E 's/^ *([0-9:]+) *up *(.*)\, *([0-9]+) users?\, *load averages?: (.*)$/\2/g' < <(uptime) )
 
 #==============================================================================
 #                                Format & Print

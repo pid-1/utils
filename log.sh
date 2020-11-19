@@ -14,6 +14,11 @@
 # majestic and wonderful spaceship vim. `mapfile -u 1` is pretty
 # effective, though you can't use any movement commands. Only typing and
 # backspace. So that's kinda dumb.
+#
+# TODO
+# Might actually want the default to be the "quick entry" option, while
+# calling `log -e` or `log editor` will open Vim.
+#
 
 rst="\033[0m"     # Reset
 gr="\033[32m"     # Green
@@ -46,7 +51,9 @@ exit $?
 
 setup () {
    [[ ! -d "${config_path}" ]] && {
-      printf "${br}◆${rst} ${config_path} not found -- creating"
+      printf "${br}◆${rst} ${config_path} not found -- creating\n"
+      mkdir -p ${config_path}
+      exit 0
    }
 
    [[ ! $(which vim 2>/dev/null) ]] && {
@@ -61,6 +68,7 @@ read_entries () {
    [[ ! ${found_entries} =~ ^[0-9]+$ ]] && {
       printf "${rd}◆${rst} Invalid read value "${br}${found_entries}${rst}". "
       printf "Must be int.\n"
+      exit 2
    }
 
    declare -a lines
@@ -93,6 +101,10 @@ read_entries () {
       printf "${lines[$len]}"
       ((len=$len-1))
    done
+   
+   echo
+   # This is to fix a small spacing issue created by the dogshit approach of up
+   # above.
 }
 
 
@@ -127,6 +139,29 @@ add_entry () {
 }
 
 
+quick_entry () {
+   entry="$@"
+
+   len=${#entry}
+   num_lines=$( sed 's/\..*//g' <<< $(awk "BEGIN {print $len / 61}") )
+   [[ $(awk "BEGIN {print 61%$len}") -ne 0 ]] && len=$(( $len + 1))
+
+   printf "(LEN: $len) (NUM LINES: $num_lines)\n"
+   declare -a result
+   for i in $(seq 0 $num_lines) ; do
+      offset=$(( $i * 61 ))
+      length=$(( $offset + 61 ))
+
+      result+="${entry:${offset}:${length}}"
+   done
+
+   # This actually does work, but it's cutting at the 80th character, rather
+   # than rounding the whole word at 80.
+   # Maybe the move is to `tr -s ' ' | cut -d ' '`, then append that to our
+   # array, but only if $(( (current_length + additional_length) -le 80 ))
+}
+
+
 setup
 
 case "$1" in
@@ -139,9 +174,7 @@ case "$1" in
       ;;
    -a|--add|add)
       shift
-      #quick_entry "$1"
-      printf "${yl}◆${rst} NYI\n"
-      exit 1
+      quick_entry "$@"
       ;;
    '')
       add_entry
