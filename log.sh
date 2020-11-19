@@ -160,6 +160,13 @@ add_entry () {
 }
 
 
+# EDIT -- work on this next
+find_entries () {
+   search_pattern="$@"
+   echo "NYI"
+   exit 1
+}
+
 quick_entry () {
    declare -a result
    readarray -d $'\n' entry < <(echo "$@" | tr -s ' ' | sed 's/ /\n/g' )
@@ -220,6 +227,10 @@ case "$1" in
    -a|--add|add)
       shift
       quick_entry "$@"
+      ;;
+   -f|--find|find)
+      shift
+      find_entries "$@"
       ;;
    '')
       add_entry
