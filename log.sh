@@ -8,17 +8,6 @@
 # It is important to have the text in a plaintext file, so output can be
 # parsed on the commandline if necessary. As well as using operations
 # like grep to quickly search.
-#
-# This is going to be an insane thing to say, but it may actually be
-# easier to NOT need to open an editor. Even if that editor is the
-# majestic and wonderful spaceship vim. `mapfile -u 1` is pretty
-# effective, though you can't use any movement commands. Only typing and
-# backspace. So that's kinda dumb.
-#
-# TODO
-# Might actually want the default to be the "quick entry" option, while
-# calling `log -e` or `log editor` will open Vim.
-#
 
 rst="\033[0m"     # Reset
 gr="\033[32m"     # Green
@@ -31,10 +20,11 @@ br="\033[37;1m"   # White (bright)
 config_path="${HOME}/.config/hre-utils"
 data_file="${config_path}/logfile.txt"
 
+
 usage () {
 cat << EOF
 
-USAGE: $(basename ${BASH_SOURCE[0]}) [--read <int:rows>]
+USAGE: $(basename ${BASH_SOURCE[0]}) [--read <int:rows>] [--add]
 
 Run the utility. It opens 'vim' in insert mode. Type an entry to save to the
 logfile. Some minor processing is done before saving the line:
@@ -101,7 +91,7 @@ read_entries () {
       printf "${lines[$len]}"
       ((len=$len-1))
    done
-   
+
    echo
    # This is to fix a small spacing issue created by the dogshit approach of up
    # above.
@@ -109,9 +99,6 @@ read_entries () {
 
 
 add_entry () {
-   today="$(date '+%Y/%b/%d %H:%M')"
-   spacer="$(for i in {1..19} ; do printf ' ' ; done)"
-
    tmp=$(mktemp --suffix=.txt)
    echo -e "\n#------------------------- LOGFILE --------------------------" >> ${tmp}
    echo "# Write quick notes, in case you need to refer to them in the" >> ${tmp}
@@ -120,6 +107,9 @@ add_entry () {
 
    # the `|| exit` allows the user to `:cq` without the script continuing.
    vim -c "norm! ggO" -c 'startinsert' -c 'set wrap tw=61 cc=62' ${tmp} || exit 1
+
+   today="$(date '+%Y/%b/%d %H:%M')"
+   spacer="$(for i in {1..19} ; do printf ' ' ; done)"
 
    readarray lines < ${tmp}
    for idx in "${!lines[@]}" ; do
@@ -140,25 +130,47 @@ add_entry () {
 
 
 quick_entry () {
-   entry="$@"
-
-   len=${#entry}
-   num_lines=$( sed 's/\..*//g' <<< $(awk "BEGIN {print $len / 61}") )
-   [[ $(awk "BEGIN {print 61%$len}") -ne 0 ]] && len=$(( $len + 1))
-
-   printf "(LEN: $len) (NUM LINES: $num_lines)\n"
    declare -a result
-   for i in $(seq 0 $num_lines) ; do
-      offset=$(( $i * 61 ))
-      length=$(( $offset + 61 ))
+   readarray -d $'\n' entry < <(echo "$@" | tr -s ' ' | sed 's/ /\n/g' )
 
-      result+="${entry:${offset}:${length}}"
+   lineNR=0
+   for word in "${entry[@]//$'\n'/}" ; do
+      existing_line_length=${#result[$lineNR]}
+      line_plus_word=$(( $existing_line_length + ${#word} ))
+
+      if [[ $((${#result[$lineNR]} + ${#word})) -le 61 ]]
+      # Normal case: append word to line, don't prepend space if it's the
+      # first word of the line
+      then
+         [[ ${#result[$lineNR]} -eq 0 ]] && {
+            result[$lineNR]+="$word"
+            #printf "${result[$lineNR]}\n"
+         } || {
+            result[$lineNR]+=" $word"
+            #printf "${result[$lineNR]}\n"
+         }
+      # Length limit reached--word wrap
+      else
+         ((lineNR=$lineNR+1))
+         result[$lineNR]+="$word"
+      fi
    done
 
-   # This actually does work, but it's cutting at the 80th character, rather
-   # than rounding the whole word at 80.
-   # Maybe the move is to `tr -s ' ' | cut -d ' '`, then append that to our
-   # array, but only if $(( (current_length + additional_length) -le 80 ))
+   today="$(date '+%Y/%b/%d %H:%M')"
+   spacer="$(for i in {1..19} ; do printf ' ' ; done)"
+
+   for idx in "${!result[@]}" ; do
+      line="${result[$idx]}"
+
+      if [[ $idx -eq 0 ]] ; then
+         printf "${today}  ${line}\n" >> ${data_file}
+         continue
+      elif [[ $idx -eq $((${#result[@]} - 1)) ]] ; then
+         printf "${spacer}${line}\n" >> ${data_file}
+      else
+         printf "${spacer}${line}" >> ${data_file}
+      fi
+   done
 }
 
 
