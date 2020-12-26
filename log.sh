@@ -7,6 +7,12 @@
 # It is important to have the text in a plaintext file, so output can be parsed
 # on the commandline if necessary. As well as using operations like grep to
 # quickly search.
+#
+# Need to make 3 helper methods.
+# 1. reverse.out    C program to read a file, backwards one line at a time
+# 2. construct      method to turn string into formatted output
+# 3. deconstruct    method to take lines of formatted output, turn them into a
+#                   string.
 
 #                                   INIT
 #-------------------------------------------------------------------------------
@@ -35,7 +41,7 @@ cleanup () {
 usage () {
 cat << EOF
 
-USAGE: $(basename ${BASH_SOURCE[0]}) [--read <int:rows>] [--add]
+USAGE: $(basename ${BASH_SOURCE[0]}) [-r <int:rows>] [-a <entry>] [-f <regex>]
 
 Run the utility. It opens 'vim' in insert mode. Type an entry to save to the
 logfile. Some minor processing is done before saving the line:
@@ -85,47 +91,34 @@ setup () {
 #                                     I/O
 #-------------------------------------------------------------------------------
 read_entries () {
-   found_entries=$1
-   [[ ! ${found_entries} =~ ^[0-9]+$ ]] && {
-      printf "${rd}◆${rst} Invalid read value "${br}${found_entries}${rst}". "
+   local entries_found=0
+   local entries_requested=$1
+
+   [[ ! ${entries_found} =~ ^[0-9]+$ ]] && {
+      printf "${rd}◆${rst} Invalid read value '"${br}${entries_found}${rst}"'. "
       printf "Must be int.\n"
       exit 2
    }
 
-   declare -a lines
-   readarray raw_lines < "$data_file"
+   reverse - <<< $(
+      while IFS=$'\n' read -r line ; do
+         if [[ $entries_found == $entries_requested ]]
+         then
+            [[ $(ps $!) ]] && kill $! &>/dev/null
+            # Typically very poor form, ^^ solves the race condition
+            # created by the file having been read & closed during
+            # `ps` output, before `kill` can trigger.
+            break
+         fi
 
-   len=${#raw_lines[@]}
-   while [[ ${len} -gt 0 ]] && [[ ${found_entries} -gt 0 ]] ; do
-      ((len=$len-1))
-      line="${raw_lines[$len]}"
+         echo "$line"
 
-      # Continuation line
-      if [[ ${line} =~ ^\ {19}.* ]] ; then
-         lines+="${line}"
-         continue
-      else
-         lines+="${line}"
-         ((found_entries=$found_entries-1))
-      fi
-   done
-
-   # God is this an awful approach.
-   # Iterates backwards through the text file, adds to the end of an array, then
-   # reads backwards through the array... to get forwards output. That's genuine
-   # insanity. It's midnight. And this """works""". Time to turn in for tonight,
-   # can work on doing it correctly tomorrow.
-
-   mapfile -d $'\n' lines <<< "${lines[@]}"
-   len="${#lines[@]}"
-   while [[ $len -ge 0 ]] ; do
-      printf "${lines[$len]}"
-      ((len=$len-1))
-   done
-
-   echo
-   # This is to fix a small spacing issue created by the dogshit approach of up
-   # above.
+         if [[ "$line" =~ ^[^\ ]+ ]]
+         then
+            ((entries_found=entries_found+1))
+         fi
+      done< <(reverse "$data_file")
+   )
 }
 
 
@@ -160,12 +153,27 @@ add_entry () {
 }
 
 
-# EDIT -- work on this next
 find_entries () {
    search_pattern="$@"
-   echo "NYI"
-   exit 1
+   declare -a result
+   local holding found counter=0
+
+   while IFS='' read -r line ; do
+      [[ "$line" =~ ^[^\ ] ]] && {
+         if [[ $(grep -iE "$search_pattern" <<< "$holding") ]]
+         then
+            printf "${holding}\n"
+         fi
+
+         ((counter=$counter+1))
+         holding=
+      }
+
+      line=$(tr -s ' ' <<< "$line")
+      holding+="$line"
+   done < ${data_file}
 }
+
 
 quick_entry () {
    declare -a result
@@ -182,10 +190,8 @@ quick_entry () {
       then
          [[ ${#result[$lineNR]} -eq 0 ]] && {
             result[$lineNR]+="$word"
-            #printf "${result[$lineNR]}\n"
          } || {
             result[$lineNR]+=" $word"
-            #printf "${result[$lineNR]}\n"
          }
       # Length limit reached--word wrap
       else
@@ -228,7 +234,7 @@ case "$1" in
       shift
       quick_entry "$@"
       ;;
-   -f|--find|find)
+   -f|--find|find|--re|--regex|regex)
       shift
       find_entries "$@"
       ;;
