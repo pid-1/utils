@@ -7,12 +7,6 @@
 # It is important to have the text in a plaintext file, so output can be parsed
 # on the commandline if necessary. As well as using operations like grep to
 # quickly search.
-#
-# Need to make 3 helper methods.
-# 1. reverse.out    C program to read a file, backwards one line at a time
-# 2. construct      method to turn string into formatted output
-# 3. deconstruct    method to take lines of formatted output, turn them into a
-#                   string.
 
 #                                   INIT
 #-------------------------------------------------------------------------------
